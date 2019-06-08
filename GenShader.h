@@ -5,9 +5,9 @@
 
 class GenShader {
 public:
-	//GenShader();
-	//~GenShader();
-
+	GenShader();
+	~GenShader();
+	bool isGenerated();
 	void generateProgramObject();
 	void attachVertexShader(const char *filePath);
 	void attachFragmentShader(const char *filePath);

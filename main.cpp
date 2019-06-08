@@ -5,6 +5,7 @@
 #include <Eigen/SparseExtra>
 #include "Viewer.h"
 #include "HE.h"
+#include "SteepLine.h"
 
 using namespace std;
 
@@ -27,7 +28,7 @@ int main(int argc, char *argv[])
 	// construct Half Edges structure
 	HE he(*faces_ptr, vertices_ptr->rows());
 	he.buildHEs();
-	std::shared_ptr<std::vector<int>> neighbors = he.getNeighbors(55);
+	//std::shared_ptr<std::vector<int>> neighbors = he.getNeighbors(55);
 
 	Eigen::SparseMatrix<double> L, M;
 	igl::cotmatrix(*vertices_ptr, *faces_ptr, L);
@@ -47,10 +48,14 @@ int main(int argc, char *argv[])
 
 	auto eigenVec_ptr = std::make_shared<Eigen::VectorXd>(U.col(0));
 
+	SteepLine steepLine(*eigenVec_ptr, he);
+	steepLine.getVerticesType();
+	std::shared_ptr<std::vector<std::vector<int>>> steepLines = steepLine.getSteepLines();
+
 	std::cout << U.col(4) << std::endl;
-	//Viewer viewer(vertices_ptr, faces_ptr);
-	//Viewer viewer(vertices_ptr, faces_ptr, vns_ptr, fns_ptr);
-	Viewer viewer(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
-	viewer.view();
+	viewer::setMeshInfo(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
+	viewer::prepareMesh();
+	viewer::passLines(steepLines);
+	viewer::view();
 	cout << "hi" << endl;
 }

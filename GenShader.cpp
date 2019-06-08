@@ -27,12 +27,26 @@ string GenShader::toErrorName(GLenum  error) {
 	}
 }
 
+GenShader::GenShader() {
+}
+GenShader::~GenShader() {
+}
+
 void GenShader::generateProgramObject() {
-	GLenum err;
-	progHandle = glCreateProgram();
-	if ((err = glGetError()) != GL_NO_ERROR) {
-		cout << "glCreateProgram error: " << err << toErrorName(err) << endl;
+	if (isGenerated()) {
+		return;
 	}
+	else {
+		GLenum err;
+		progHandle = glCreateProgram();
+		if ((err = glGetError()) != GL_NO_ERROR) {
+			cout << "glCreateProgram error: " << err << toErrorName(err) << endl;
+		}
+	}
+}
+
+bool GenShader::isGenerated() {
+	return progHandle != 100;
 }
 
 void GenShader::attachVertexShader(const char *filePath) {
