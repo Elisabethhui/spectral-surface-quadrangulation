@@ -19,11 +19,21 @@ namespace viewer {
 		GLuint vao_line;
 		GLuint vbo_line;
 
+		//pseudo colors
+		std::vector<glm::vec3> pseudo_cols = {
+			glm::vec3(0.55294117647f, 0.50588235294f, 0.46666666666f),
+			glm::vec3(0.90980392156f, 1.00000000000f, 0.89019607843f),
+			glm::vec3(0.56078431372f, 0.69803921568f, 0.89019607843f),
+			glm::vec3(0.81960784313f, 0.91764705882f, 0.87058823529f),
+			glm::vec3(0.84705882352f, 0.91764705882f, 0.87058823529f) };
+		
+		DrawMode drawMode = DrawMode::VALUE;
 		std::shared_ptr<Eigen::MatrixXd> vertices;
 		std::shared_ptr<Eigen::MatrixXd> vns;
 		std::shared_ptr<Eigen::MatrixXi> faces;
 		std::shared_ptr<Eigen::MatrixXi> fns;
 		std::shared_ptr<Eigen::VectorXd> vert_values;
+		std::shared_ptr<std::vector<int>> partitions;
 		std::shared_ptr<std::vector<std::vector<float>>> display_lines;
 		std::shared_ptr<std::vector<std::vector<int>>> lines_indices;
 
@@ -53,6 +63,15 @@ namespace viewer {
 				colors.row(i) = (*values)(i) * red + (1.0f - (*values)(i)) * blue;
 			}
 			return std::make_shared<Eigen::MatrixXd>(colors);
+		}
+
+		std::shared_ptr<Eigen::MatrixXd> partition2Colors() {
+			std::shared_ptr<Eigen::MatrixXd> colors = std::make_shared<Eigen::MatrixXd>(partitions->size(), 3);
+			for (int i = 0; i < partitions->size(); i++) {
+				colors->row(i) << pseudo_cols[partitions->at(i)][0], 
+					pseudo_cols[partitions->at(i)][1], pseudo_cols[partitions->at(i)][2];
+			}
+			return colors;
 		}
 
 		void draw_mesh(void) {
@@ -208,8 +227,15 @@ namespace viewer {
 				else {
 					glBufferData(GL_ARRAY_BUFFER, N * 27 * sizeof(float), 0, GL_STATIC_DRAW);
 					//store vertices colors into buffer
-					auto colors = vals2Colors(vert_values);
-					auto display_colors = createDisplayColors(*colors);
+					std::shared_ptr<Eigen::MatrixXd> colors;
+					if (drawMode == DrawMode::VALUE) {
+						colors = vals2Colors(vert_values);
+					}
+					else {
+						colors = partition2Colors();
+					}
+					std::shared_ptr<std::vector<float>> display_colors = createDisplayColors(*colors);
+				
 					float *display_colors_arr = &(*display_colors)[0];
 					glBufferSubData(GL_ARRAY_BUFFER, N * 18 * sizeof(float), N * 9 * sizeof(float), display_colors_arr);
 					if ((err = glGetError()) != GL_NO_ERROR) {
@@ -332,6 +358,14 @@ namespace viewer {
 		if (vns != nullptr) {
 			createLight();
 		}
+	}
+
+	void setDrawMode(DrawMode mode) {
+		drawMode = mode;
+	}
+
+	void setPartition(std::shared_ptr<std::vector<int>> p) {
+		partitions = p;
 	}
 
 	void view() {

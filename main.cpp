@@ -6,6 +6,7 @@
 #include "Viewer.h"
 #include "HE.h"
 #include "SteepLine.h"
+#include "MSComplex.h"
 
 using namespace std;
 
@@ -26,8 +27,8 @@ int main(int argc, char *argv[])
 	igl::readOBJ("../models/sphere.obj", *vertices_ptr, tcs, *vns_ptr, *faces_ptr, ftcs, *fns_ptr);
 
 	// construct Half Edges structure
-	HE he(*faces_ptr, vertices_ptr->rows());
-	he.buildHEs();
+	std::shared_ptr<HE> he = std::make_shared<HE>(*faces_ptr, vertices_ptr->rows());
+	he->buildHEs();
 	//std::shared_ptr<std::vector<int>> neighbors = he.getNeighbors(55);
 
 	Eigen::SparseMatrix<double> L, M;
@@ -48,12 +49,26 @@ int main(int argc, char *argv[])
 
 	auto eigenVec_ptr = std::make_shared<Eigen::VectorXd>(U.col(0));
 
-	SteepLine steepLine(*eigenVec_ptr, he);
-	steepLine.getVerticesType();
-	std::shared_ptr<std::vector<std::vector<int>>> steepLines = steepLine.getSteepLines();
+	std::shared_ptr<SteepLine> SL = std::make_shared<SteepLine>(*eigenVec_ptr, *he);
+	SL->getVerticesType();
+	std::shared_ptr<std::vector<std::vector<int>>> steepLines = SL->getSteepLines();
+
+	MSComplex::setSL(SL);
+	MSComplex::setHE(he);
+	MSComplex::buildAdjMatrix();
+	MSComplex::buildMSComplex();
+
+	auto region_verts = MSComplex::DFS(10);
+	int N = vertices_ptr->size();
+	std::shared_ptr<std::vector<int>> partitions = std::make_shared<std::vector<int>>(N);
+	for (int i = 0; i < region_verts->size(); i++) {
+		partitions->at(region_verts->at(i)) = 1;
+	}
 
 	std::cout << U.col(4) << std::endl;
 	viewer::setMeshInfo(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
+	viewer::setDrawMode(viewer::DrawMode::PSEUDO_COLOR);
+	viewer::setPartition(partitions);
 	viewer::prepareMesh();
 	viewer::passLines(steepLines);
 	viewer::view();

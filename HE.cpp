@@ -54,3 +54,7 @@ std::shared_ptr<std::vector<int>> HE::getNeighbors(int v_index) {
 	} 
 	return neighbors;
 }
+
+int HE::getNumVerts() {
+	return he_verts.size();
+}

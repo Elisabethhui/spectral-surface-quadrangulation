@@ -9,14 +9,18 @@ public:
 	SteepLine(Eigen::VectorXd &values, HE &he);
 	void getVerticesType();
 	std::shared_ptr<std::vector<std::vector<int>>> getSteepLines();
+	std::shared_ptr<std::vector<int>> getSaddles();
+	std::shared_ptr<std::vector<int>> getMins();
+	std::shared_ptr<std::vector<int>> getMaxs();
+
 private:
 	enum class CrtlType { NA = 0, Max = 1, Min = 2, Sdl = 3, Reg = 4};
 	HE &he;
 	Eigen::VectorXd &values;
 	std::vector<CrtlType> types;
-	std::vector<int> saddles;
-	//std::vector<int> maxs;
-	//std::vector<int> mins;
+	std::shared_ptr<std::vector<int>> saddles;
+	std::shared_ptr<std::vector<int>> maxs;
+	std::shared_ptr<std::vector<int>> mins;
 	std::vector<std::vector<int>> steep_lines;
 
 	std::shared_ptr<std::vector<double>> getNeighborValues(std::vector<int> &neighbors);

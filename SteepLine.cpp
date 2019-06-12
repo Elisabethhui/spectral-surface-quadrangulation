@@ -5,6 +5,9 @@ SteepLine::SteepLine(Eigen::VectorXd &values, HE &he) :
 	values (values),
 	types (std::vector<CrtlType>(values.size())),
 	he (he) {
+	saddles = std::make_shared<std::vector<int>>();
+	mins = std::make_shared<std::vector<int>>();
+	maxs = std::make_shared<std::vector<int>>();
 }
 
 std::shared_ptr<std::vector<double>> SteepLine::getNeighborValues(std::vector<int> &neighbors) {
@@ -30,16 +33,18 @@ void SteepLine::getVerticesType() {
 		}
 		if (sign_change == 0 && v_val - (*neighbors_vals)[0] < 0) {
 			types[i] = CrtlType::Min;
+			mins->push_back(i);
 		}
 		else if (sign_change == 0 && v_val - (*neighbors_vals)[0] >= 0) {
 			types[i] = CrtlType::Max;
+			maxs->push_back(i);
 		}
 		else if (sign_change == 2) {
 			types[i] = CrtlType::Reg;
 		}
 		else {
 			types[i] = CrtlType::Sdl;
-			saddles.push_back(i);
+			saddles->push_back(i);
 		}
 	}
 }
@@ -85,8 +90,8 @@ std::shared_ptr<std::vector<std::vector<int>>> SteepLine::getSteepLines() {
 	if (steep_lines.size() > 0) {
 		return std::make_shared<std::vector<std::vector<int>>>(steep_lines);
 	}
-	for (int i = 0; i < saddles.size(); i++) {
-		int sdl_index = saddles[i];
+	for (int i = 0; i < saddles->size(); i++) {
+		int sdl_index = saddles->at(i);
 		std::shared_ptr<std::vector<int>> neighbors = he.getNeighbors(sdl_index);
 		std::shared_ptr<std::vector<double>> neighbor_values = getNeighborValues(*neighbors);
 		auto getLeftNb = [neighbors](const int nb_indx) {
@@ -111,6 +116,16 @@ std::shared_ptr<std::vector<std::vector<int>>> SteepLine::getSteepLines() {
 		}
 	}
 	return std::make_shared<std::vector<std::vector<int>>>(steep_lines);
+}
+
+std::shared_ptr<std::vector<int>> SteepLine::getSaddles() {
+	return saddles;
+}
+std::shared_ptr<std::vector<int>> SteepLine::getMins() {
+	return mins;
+}
+std::shared_ptr<std::vector<int>> SteepLine::getMaxs() {
+	return maxs;
 }
 
 

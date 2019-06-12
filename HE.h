@@ -10,6 +10,7 @@ public:
 	HE(Eigen::MatrixXi &faces, int N);
 	void buildHEs();
 	std::shared_ptr<std::vector<int>> getNeighbors(int v_index);
+	int getNumVerts();
 
 private:
 	class Edge {
