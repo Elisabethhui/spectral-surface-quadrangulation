@@ -12,6 +12,7 @@ namespace MSComplex {
 	// vertex connected to, index of steep line, forward
 	std::shared_ptr<std::vector<std::vector<std::tuple<int, int, bool>>>> adj_list;
 	std::shared_ptr<std::vector<int>> adj_index;
+	std::map<int, std::vector<int>> sl_to_region;
 
 	struct ms_region_t {
 		std::vector<int> nodes;
@@ -121,6 +122,16 @@ namespace MSComplex {
 		}
 	}
 
+	void connectSL2Region() {
+		for (int i = 0; i < ms_regions->size(); i++) {
+			for (int j = 0; j < 4; j++) {
+				int node_index = ms_regions->at(i).nodes[j];
+				int next_node_index = ms_regions->at(i).nodes[(j+1)%4];
+				auto sl_info = getSL(node_index, next_node_index);
+
+			}
+		}
+	}
 	std::shared_ptr<std::vector<ms_region_t>> buildMSComplex() {
 		// if already built
 		if (ms_regions) {
