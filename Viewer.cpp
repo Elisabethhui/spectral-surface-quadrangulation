@@ -21,6 +21,12 @@ namespace viewer {
 
 		//pseudo colors
 		std::vector<glm::vec3> pseudo_cols = {
+			glm::vec3(1.f, 0.f, 0.f),
+			glm::vec3(0.f, 1.f, 0.f),
+			glm::vec3(0.f, 0.f, 1.f),
+			glm::vec3(1.f, 1.f, 0.f),
+			glm::vec3(0.f, 1.f, 1.f),
+			glm::vec3(1.f, 0.f, 1.f),
 			glm::vec3(0.55294117647f, 0.50588235294f, 0.46666666666f),
 			glm::vec3(0.90980392156f, 1.00000000000f, 0.89019607843f),
 			glm::vec3(0.56078431372f, 0.69803921568f, 0.89019607843f),

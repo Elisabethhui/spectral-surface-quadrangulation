@@ -15,12 +15,16 @@ namespace MSComplex {
 
 	struct ms_region_t {
 		std::vector<int> nodes;
+		std::vector<int> region_verts;
 	};
 
-	std::shared_ptr<std::vector<ms_region_t>> ms_regions = std::make_shared<std::vector<ms_region_t>>();
+	std::shared_ptr<std::vector<ms_region_t>> ms_regions;
 
 	bool onSteepLine(int v_index, int &sl_index);
 	void DFS_rec(int start_index, std::vector<int> &sl_indices, std::vector<bool> &visited);
+	int findAVertInRegion(ms_region_t &ms_region);
+	void fillMsComplex();
+	void DFS(int start_index, std::vector<int> &region_verts);
 
 	void setSL(std::shared_ptr<SteepLine> steepLine) {
 		SL = steepLine;
@@ -117,7 +121,12 @@ namespace MSComplex {
 		}
 	}
 
-	void buildMSComplex() {
+	std::shared_ptr<std::vector<ms_region_t>> buildMSComplex() {
+		// if already built
+		if (ms_regions) {
+			return ms_regions;
+		}
+		ms_regions = std::make_shared<std::vector<ms_region_t>>();
 		//int N = adj_index->size();
 		auto steepLines = SL->getSteepLines();
 		// sl1(forward) sl1(backward) sl2(forward) sl2(backward) ...
@@ -161,24 +170,61 @@ namespace MSComplex {
 				ms_regions->push_back(ms_region);
 			}
 		}
+		fillMsComplex();
+		return ms_regions;
+	}
+
+	void fillMsComplex() {
+		for (int i = 0; i < ms_regions->size(); i++) {
+			int v_in_region = findAVertInRegion(ms_regions->at(i));
+			DFS(v_in_region, (ms_regions->at(i)).region_verts);
+		}
 	}
 
 	int findAVertInRegion(ms_region_t &ms_region) {
-
+		// try each steep line
+		for (int i = 0; i < 4; i++) {
+			auto steepLines = SL->getSteepLines();
+			int node1 = ms_region.nodes[i];
+			int node2 = ms_region.nodes[(i+1)%4];
+			std::tuple<int, int, bool> sl_data = getSL(node1, node2);
+			int sl_index = std::get<1>(sl_data);
+			bool forward = std::get<2>(sl_data);
+			int sl_mid_index = steepLines->at(sl_index).size() / 2;
+			int sl_mid_v = steepLines->at(sl_index)[sl_mid_index];
+			// the next 
+			int sl_mid_next, sl_mid_prev;
+			if (forward) {
+				sl_mid_next = steepLines->at(sl_index)[sl_mid_index + 1];
+				sl_mid_prev = steepLines->at(sl_index)[sl_mid_index - 1];
+			}
+			else {
+				sl_mid_prev = steepLines->at(sl_index)[sl_mid_index + 1];
+				sl_mid_next = steepLines->at(sl_index)[sl_mid_index - 1];
+			}
+			// get the neighbor on the right
+			auto neighbors = he->getNeighbors(sl_mid_v);
+			int prev_index = std::distance( neighbors->begin(), std::find(neighbors->begin(), neighbors->end(), sl_mid_prev));
+			int next_index = std::distance( neighbors->begin(), std::find(neighbors->begin(), neighbors->end(), sl_mid_next));
+			int nbs_size = neighbors->size();
+			// if there are neighbors after next, before prev
+			if ((next_index + 1) % nbs_size != prev_index) {
+				return neighbors->at((next_index + 1) % neighbors->size());
+			}
+		}
+		return -1;
 	}
 
-	std::shared_ptr<std::vector<int>> DFS(int start_index) {
+	void DFS(int start_index, std::vector<int> &region_verts) {
 		int N = he->getNumVerts();
 		std::vector<bool> visited(N);
 		std::vector<int> sl_indices;
-		std::shared_ptr<std::vector<int>> region_verts = std::make_shared<std::vector<int>>();
 		DFS_rec(start_index, sl_indices, visited);
 		for (int i = 0; i < N; i++) {
 			if (visited.at(i)) {
-				region_verts->push_back(i);
+				region_verts.push_back(i);
 			}
 		}
-		return region_verts;
 	}
 
 	void DFS_rec(int start_index, std::vector<int> &sl_indices, std::vector<bool> &visited) {

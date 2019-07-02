@@ -10,7 +10,7 @@
 
 using namespace std;
 
-int EIG_NUM = 5;
+int EIG_NUM = 8;
 
 int main(int argc, char *argv[])
 {
@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 
 	glutInit(&argc, argv);
 	// //Load a mesh in OFF format
-	igl::readOBJ("../models/sphere.obj", *vertices_ptr, tcs, *vns_ptr, *faces_ptr, ftcs, *fns_ptr);
+	igl::readOBJ("../models/sphere1.obj", *vertices_ptr, tcs, *vns_ptr, *faces_ptr, ftcs, *fns_ptr);
 
 	// construct Half Edges structure
 	std::shared_ptr<HE> he = std::make_shared<HE>(*faces_ptr, vertices_ptr->rows());
@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
 	if (!igl::eigs(L, M, EIG_NUM, igl::EIGS_TYPE_SM, U, D))
 	{
 		cout << "failed." << endl;
+		exit(1);
 	}
 
 	U = ((U.array() - U.minCoeff()) / (U.maxCoeff() - U.minCoeff())).eval();
@@ -56,13 +57,15 @@ int main(int argc, char *argv[])
 	MSComplex::setSL(SL);
 	MSComplex::setHE(he);
 	MSComplex::buildAdjMatrix();
-	MSComplex::buildMSComplex();
+	std::shared_ptr<std::vector<MSComplex::ms_region_t>> ms_regions = MSComplex::buildMSComplex();
 
-	auto region_verts = MSComplex::DFS(10);
 	int N = vertices_ptr->size();
 	std::shared_ptr<std::vector<int>> partitions = std::make_shared<std::vector<int>>(N);
-	for (int i = 0; i < region_verts->size(); i++) {
-		partitions->at(region_verts->at(i)) = 1;
+	for (int i = 0; i < ms_regions->size(); i++) {
+		std::vector<int> &region_verts = ms_regions->at(i).region_verts;
+		for (int j = 0; j < region_verts.size(); j++) {
+			partitions->at(region_verts.at(j)) = i;
+		}
 	}
 
 	std::cout << U.col(4) << std::endl;
