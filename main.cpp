@@ -10,7 +10,7 @@
 
 using namespace std;
 
-int EIG_NUM = 8;
+int EIG_NUM = 10;
 
 int main(int argc, char *argv[])
 {
@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
 	MSComplex::setHE(he);
 	MSComplex::buildAdjMatrix();
 	std::shared_ptr<std::vector<MSComplex::ms_region_t>> ms_regions = MSComplex::buildMSComplex();
+	MSComplex::parametrize();
 
 	int N = vertices_ptr->size();
 	std::shared_ptr<std::vector<int>> partitions = std::make_shared<std::vector<int>>(N);

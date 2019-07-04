@@ -74,8 +74,9 @@ namespace viewer {
 		std::shared_ptr<Eigen::MatrixXd> partition2Colors() {
 			std::shared_ptr<Eigen::MatrixXd> colors = std::make_shared<Eigen::MatrixXd>(partitions->size(), 3);
 			for (int i = 0; i < partitions->size(); i++) {
-				colors->row(i) << pseudo_cols[partitions->at(i)][0], 
-					pseudo_cols[partitions->at(i)][1], pseudo_cols[partitions->at(i)][2];
+				int col_index = partitions->at(i) % pseudo_cols.size();
+				colors->row(i) << pseudo_cols[col_index][0],
+					pseudo_cols[col_index][1], pseudo_cols[col_index][2];
 			}
 			return colors;
 		}

@@ -4,6 +4,7 @@
 #include <memory>
 #include <algorithm>
 #include <tuple>
+#include <set>
 
 namespace MSComplex {
 
@@ -13,6 +14,7 @@ namespace MSComplex {
 	std::shared_ptr<std::vector<std::vector<std::tuple<int, int, bool>>>> adj_list;
 	std::shared_ptr<std::vector<int>> adj_index;
 	std::map<int, std::vector<int>> sl_to_region;
+	std::map<std::tuple<int, int>, glm::vec2> trnsfr_fnctns;
 
 	struct ms_region_t {
 		std::vector<int> nodes;
@@ -64,8 +66,8 @@ namespace MSComplex {
 			int end = (*steepLines)[i].back();
 			int start_index = v2AdjIndex(start);
 			int end_index = v2AdjIndex(end);
-			(adj_list->at(start_index)).push_back(std::make_tuple(end_index, i, true));
-			(adj_list->at(end_index)).push_back(std::make_tuple(start_index, i, false));
+(adj_list->at(start_index)).push_back(std::make_tuple(end_index, i, true));
+(adj_list->at(end_index)).push_back(std::make_tuple(start_index, i, false));
 		}
 		// order adj_list so that neighbors are in cw order
 		for (int i = 0; i < adj_list->size(); i++) {
@@ -109,7 +111,7 @@ namespace MSComplex {
 		}
 		return adj_list->at(start)[(nb_index + 1) % nb_num];
 	}
-	
+
 	std::tuple<int, int, bool> getSL(int start, int end) {
 		int i = 0;
 		int nb_index = -1;
@@ -122,16 +124,79 @@ namespace MSComplex {
 		}
 	}
 
+	int getSLIndex(int start_v, int end_v) {
+		auto steepLines = SL->getSteepLines();
+		for (int i = 0; i < steepLines->size(); i++) {
+			if ((steepLines->at(i)[0] == start_v  && steepLines->at(i).end()[-1] == end_v) ||
+				(steepLines->at(i)[0] == end_v  && steepLines->at(i).end()[-1] == start_v)) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
 	void connectSL2Region() {
-		for (int i = 0; i < ms_regions->size(); i++) {
+		for (int r_index = 0; r_index < ms_regions->size(); r_index++) {
 			for (int j = 0; j < 4; j++) {
-				int node_index = ms_regions->at(i).nodes[j];
-				int next_node_index = ms_regions->at(i).nodes[(j+1)%4];
-				auto sl_info = getSL(node_index, next_node_index);
+				int node_index = ms_regions->at(r_index).nodes[j];
+				int next_node_index = ms_regions->at(r_index).nodes[(j + 1) % 4];
+				int sl_index = getSLIndex(adj_index->at(node_index), adj_index->at(next_node_index));
+				if (sl_to_region.find(sl_index) != sl_to_region.end()) {
+					sl_to_region.at(sl_index).push_back(r_index);
+				}
+				else {
+					sl_to_region.insert(std::pair<int, std::vector<int>>(sl_index, std::vector<int>{r_index}));
+				}
 
 			}
 		}
 	}
+
+
+	void buildTransFuncsEntries() {
+		std::vector<glm::vec2> trans_funcs = std::vector<glm::vec2>({
+			glm::vec2(-1, 0),
+			glm::vec2(0, 1),
+			glm::vec2(1, 0),
+			glm::vec2(0, -1) });
+		for (int r_index = 0; r_index < ms_regions->size(); r_index++) {
+			for (int j = 0; j < 4; j++) {
+				int node_index = ms_regions->at(r_index).nodes[j];
+				int next_node_index = ms_regions->at(r_index).nodes[(j + 1) % 4];
+				int sl_index = getSLIndex(adj_index->at(node_index), adj_index->at(next_node_index));
+				auto adj_regions = sl_to_region.at(sl_index);
+				int nb_region;
+				if (adj_regions[0] == r_index) {
+					nb_region = adj_regions[1];
+				}
+				else {
+					nb_region = adj_regions[0];
+				}
+				if (trnsfr_fnctns.find(std::make_pair(r_index, nb_region)) == trnsfr_fnctns.end()) {
+					// set origin and u direction
+					if (r_index == 0) {
+						trnsfr_fnctns[std::make_pair(r_index, nb_region)] = trans_funcs[j];
+					}
+					else {
+						trnsfr_fnctns[std::make_pair(r_index, nb_region)] = glm::vec2(0, 0);
+					}
+				}
+				else {
+					std::cout << "two patches are connected by more than 1 edge" << std::endl;
+				}
+			}
+		}
+	}
+
+	void buildTransFuncs() {
+		std::shared_ptr<std::vector<bool>> built = std::make_shared<std::vector<bool>>(trnsfr_fnctns.size(), false);
+		
+	}
+
+	void buildTransFuncsRec(std::tuple<int, int> patch_pair, std::shared_ptr<std::vector<bool>> built) {
+
+	}
+
 	std::shared_ptr<std::vector<ms_region_t>> buildMSComplex() {
 		// if already built
 		if (ms_regions) {
@@ -190,6 +255,11 @@ namespace MSComplex {
 			int v_in_region = findAVertInRegion(ms_regions->at(i));
 			DFS(v_in_region, (ms_regions->at(i)).region_verts);
 		}
+	}
+
+	void parametrize() {
+		connectSL2Region();
+		buildTransFuncsEntries();
 	}
 
 	int findAVertInRegion(ms_region_t &ms_region) {
