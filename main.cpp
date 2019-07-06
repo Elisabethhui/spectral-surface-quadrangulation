@@ -3,17 +3,21 @@
 #include <igl/eigs.h>
 #include <igl/massmatrix.h>
 #include <Eigen/SparseExtra>
-//#include "Viewer.h"
+#include <iostream>
+#include "Viewer.h"
 #include "HE.h"
 #include "SteepLine.h"
 #include "MSComplex.h"
 
 using namespace std;
 
-int EIG_NUM = 5;
+int EIG_NUM = 10;
+bool readmode = true;
 
 int main(int argc, char *argv[])
 {
+	std::shared_ptr<Eigen::VectorXd> eigenVec_ptr;
+
 	Eigen::MatrixXd tcs;
 	Eigen::MatrixXi ftcs;
 
@@ -22,7 +26,7 @@ int main(int argc, char *argv[])
 	auto faces_ptr = std::make_shared<Eigen::MatrixXi>();
 	auto fns_ptr = std::make_shared<Eigen::MatrixXi>();
 
-	//glutInit(&argc, argv);
+	glutInit(&argc, argv);
 	// //Load a mesh in OFF format
 	igl::readOBJ("../models/sphere1.obj", *vertices_ptr, tcs, *vns_ptr, *faces_ptr, ftcs, *fns_ptr);
 
@@ -37,18 +41,48 @@ int main(int argc, char *argv[])
 
 	igl::massmatrix(*vertices_ptr, *faces_ptr, igl::MASSMATRIX_TYPE_DEFAULT, M);
 
-	Eigen::MatrixXd U;
-	Eigen::VectorXd D;
-	//igl::eigs(L, M, 5, igl::EIGS_TYPE_SM, U, D);
-	if (!igl::eigs(L, M, EIG_NUM, igl::EIGS_TYPE_SM, U, D))
-	{
-		cout << "failed." << endl;
-		exit(1);
+	if (!readmode) {
+		Eigen::MatrixXd U;
+		Eigen::VectorXd D;
+		//igl::eigs(L, M, 5, igl::EIGS_TYPE_SM, U, D);
+		if (!igl::eigs(L, M, EIG_NUM, igl::EIGS_TYPE_SM, U, D))
+		{
+			std::cout << "failed." << endl;
+			exit(1);
+		}
+
+		U = ((U.array() - U.minCoeff()) / (U.maxCoeff() - U.minCoeff())).eval();
+
+		eigenVec_ptr = std::make_shared<Eigen::VectorXd>(U.col(0));
+
+		// write eigen vector to file
+		ofstream myfile;
+		myfile.open("eigen_vec.txt", ios::out);
+		if (myfile.is_open()) {
+			for (int i = 0; i < eigenVec_ptr->rows(); i++) {
+				myfile << (*eigenVec_ptr)(i) << "\n";
+				std::cout << (*eigenVec_ptr)(i) << endl;
+			}
+			myfile.close();
+		}
 	}
-
-	U = ((U.array() - U.minCoeff()) / (U.maxCoeff() - U.minCoeff())).eval();
-
-	auto eigenVec_ptr = std::make_shared<Eigen::VectorXd>(U.col(0));
+	else {
+		eigenVec_ptr = std::make_shared<Eigen::VectorXd>(vertices_ptr->rows());
+		// read eigen vector from file
+		ifstream myfile;
+		string line;
+		myfile.open("eigen_vec.txt");
+		if (myfile.is_open()) {
+			int line_num = 0;
+			while (getline(myfile, line))
+			{
+				float num = std::stof(line);
+				(*eigenVec_ptr)(line_num) = num;
+				line_num++;
+			}
+			myfile.close();
+		}
+	}
 
 	std::shared_ptr<SteepLine> SL = std::make_shared<SteepLine>(*eigenVec_ptr, *he);
 	SL->getVerticesType();
@@ -58,7 +92,7 @@ int main(int argc, char *argv[])
 	MSComplex::setHE(he);
 	MSComplex::buildAdjMatrix();
 	std::shared_ptr<std::vector<MSComplex::ms_region_t>> ms_regions = MSComplex::buildMSComplex();
-	MSComplex::parametrize();
+	//MSComplex::parametrize();
 
 	int N = vertices_ptr->size();
 	std::shared_ptr<std::vector<int>> partitions = std::make_shared<std::vector<int>>(N);
@@ -69,12 +103,11 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	std::cout << U.col(4) << std::endl;
-	//viewer::setMeshInfo(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
-	//viewer::setDrawMode(viewer::DrawMode::PSEUDO_COLOR);
-	//viewer::setPartition(partitions);
-	//viewer::prepareMesh();
-	//viewer::passLines(steepLines);
-	//viewer::view();
+	viewer::setMeshInfo(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
+	viewer::setDrawMode(viewer::DrawMode::PSEUDO_COLOR);
+	viewer::setPartition(partitions);
+	viewer::prepareMesh();
+	viewer::passLines(steepLines);
+	viewer::view();
 	cout << "hi" << endl;
 }
