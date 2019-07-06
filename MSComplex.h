@@ -1,6 +1,7 @@
 #pragma once
 #include "SteepLine.h"
 #include "HE.h"
+#include <glm.hpp>
 #include <memory>
 #include <algorithm>
 #include <tuple>
@@ -14,7 +15,15 @@ namespace MSComplex {
 	std::shared_ptr<std::vector<std::vector<std::tuple<int, int, bool>>>> adj_list;
 	std::shared_ptr<std::vector<int>> adj_index;
 	std::map<int, std::vector<int>> sl_to_region;
-	std::map<std::tuple<int, int>, glm::vec2> trnsfr_fnctns;
+	// from patch, to patch: index in transfer functions
+	std::map<std::tuple<int, int>, int> trnsfr_fnctns;
+
+	// possible transfer functions
+	std::vector<glm::vec2> trans_funcs = std::vector<glm::vec2>({
+	glm::vec2(-1, 0),
+	glm::vec2(0, 1),
+	glm::vec2(1, 0),
+	glm::vec2(0, -1) });
 
 	struct ms_region_t {
 		std::vector<int> nodes;
@@ -66,8 +75,8 @@ namespace MSComplex {
 			int end = (*steepLines)[i].back();
 			int start_index = v2AdjIndex(start);
 			int end_index = v2AdjIndex(end);
-(adj_list->at(start_index)).push_back(std::make_tuple(end_index, i, true));
-(adj_list->at(end_index)).push_back(std::make_tuple(start_index, i, false));
+			(adj_list->at(start_index)).push_back(std::make_tuple(end_index, i, true));
+			(adj_list->at(end_index)).push_back(std::make_tuple(start_index, i, false));
 		}
 		// order adj_list so that neighbors are in cw order
 		for (int i = 0; i < adj_list->size(); i++) {
@@ -152,33 +161,44 @@ namespace MSComplex {
 		}
 	}
 
+	std::vector<int> getPatchSlIndices(ms_region_t patch) {
+		std::vector<int> sl_indices(4);
+		for (int j = 0; j < 4; j++) {
+			int node_index = patch.nodes[j];
+			int next_node_index = patch.nodes[(j + 1) % 4];
+			sl_indices[j] = getSLIndex(adj_index->at(node_index), adj_index->at(next_node_index));
+		}
+		return sl_indices;
+	}
+
+	std::vector<int> getNbPatches(int patch_index) {
+		std::vector<int> sl_indices = getPatchSlIndices(ms_regions->at(patch_index));
+		std::vector<int> nb_regions(4);
+		for (int j = 0; j < 4; j++) {
+			auto adj_regions = sl_to_region.at(sl_indices[j]);
+			if (adj_regions[0] == patch_index) {
+				nb_regions[j] = adj_regions[1];
+			}
+			else {
+				nb_regions[j] = adj_regions[0];
+			}
+		}
+		return nb_regions;
+	}
 
 	void buildTransFuncsEntries() {
-		std::vector<glm::vec2> trans_funcs = std::vector<glm::vec2>({
-			glm::vec2(-1, 0),
-			glm::vec2(0, 1),
-			glm::vec2(1, 0),
-			glm::vec2(0, -1) });
 		for (int r_index = 0; r_index < ms_regions->size(); r_index++) {
+			std::vector<int> nb_patches = getNbPatches(r_index);
 			for (int j = 0; j < 4; j++) {
-				int node_index = ms_regions->at(r_index).nodes[j];
-				int next_node_index = ms_regions->at(r_index).nodes[(j + 1) % 4];
-				int sl_index = getSLIndex(adj_index->at(node_index), adj_index->at(next_node_index));
-				auto adj_regions = sl_to_region.at(sl_index);
-				int nb_region;
-				if (adj_regions[0] == r_index) {
-					nb_region = adj_regions[1];
-				}
-				else {
-					nb_region = adj_regions[0];
-				}
+				int nb_region = nb_patches[j];
+
 				if (trnsfr_fnctns.find(std::make_pair(r_index, nb_region)) == trnsfr_fnctns.end()) {
 					// set origin and u direction
 					if (r_index == 0) {
-						trnsfr_fnctns[std::make_pair(r_index, nb_region)] = trans_funcs[j];
+						trnsfr_fnctns[std::make_pair(r_index, nb_region)] = j;
 					}
 					else {
-						trnsfr_fnctns[std::make_pair(r_index, nb_region)] = glm::vec2(0, 0);
+						trnsfr_fnctns[std::make_pair(r_index, nb_region)] = -1;
 					}
 				}
 				else {
@@ -190,10 +210,48 @@ namespace MSComplex {
 
 	void buildTransFuncs() {
 		std::shared_ptr<std::vector<bool>> built = std::make_shared<std::vector<bool>>(trnsfr_fnctns.size(), false);
+		std::vector<int> nb_patches = getNbPatches(0);
+		for (int nb_patch = 0; nb_patch < 4; nb_patch++) {
+			buildTransFuncsRec(0, nb_patch, built);
+		}
 		
 	}
 
-	void buildTransFuncsRec(std::tuple<int, int> patch_pair, std::shared_ptr<std::vector<bool>> built) {
+	int getOppositeTransFunc(int func_index) {
+		switch (func_index) {
+		case 0:
+			return 2;
+		case 1:
+			return 3;
+		case 2:
+			return 0;
+		case 3:
+			return 1;
+		default:
+			std::cout << "function index out of range, cannot find opposite" << std::endl;
+			return -1;
+		}
+	}
+
+	void buildTransFuncsRec(int from_patch, int patch, std::shared_ptr<std::vector<bool>> built) {
+		std::vector<int> nb_patches = getNbPatches(patch);
+		std::vector<int>::iterator it = std::find(nb_patches.begin(), nb_patches.end(), from_patch);
+		int from_index = std::distance(nb_patches.begin(), it);
+		int from_function = trnsfr_fnctns[std::make_pair(from_patch, patch)];
+		int func_index = getOppositeTransFunc(from_function);
+		// fill in the transfunction from this patch to its neighbors
+		for (int i = 0; i < 4; i++) {
+			int nb = nb_patches[(from_index + i) % 4];
+			trnsfr_fnctns[std::make_pair(patch, nb)] = (func_index + i) % 4;
+		}
+		// recursively find trans functions starting from neighbors
+		for (int i = 0; i < 4; i++) {
+			auto it = trnsfr_fnctns.find(std::make_pair(patch, nb_patches[i]));
+			int map_index = std::distance(trnsfr_fnctns.begin(), it);
+			if (!built->at(map_index)) {
+				buildTransFuncsRec(patch, nb_patches[i], built);
+			}
+		}
 
 	}
 

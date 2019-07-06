@@ -3,14 +3,14 @@
 #include <igl/eigs.h>
 #include <igl/massmatrix.h>
 #include <Eigen/SparseExtra>
-#include "Viewer.h"
+//#include "Viewer.h"
 #include "HE.h"
 #include "SteepLine.h"
 #include "MSComplex.h"
 
 using namespace std;
 
-int EIG_NUM = 10;
+int EIG_NUM = 5;
 
 int main(int argc, char *argv[])
 {
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 	auto faces_ptr = std::make_shared<Eigen::MatrixXi>();
 	auto fns_ptr = std::make_shared<Eigen::MatrixXi>();
 
-	glutInit(&argc, argv);
+	//glutInit(&argc, argv);
 	// //Load a mesh in OFF format
 	igl::readOBJ("../models/sphere1.obj", *vertices_ptr, tcs, *vns_ptr, *faces_ptr, ftcs, *fns_ptr);
 
@@ -70,11 +70,11 @@ int main(int argc, char *argv[])
 	}
 
 	std::cout << U.col(4) << std::endl;
-	viewer::setMeshInfo(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
-	viewer::setDrawMode(viewer::DrawMode::PSEUDO_COLOR);
-	viewer::setPartition(partitions);
-	viewer::prepareMesh();
-	viewer::passLines(steepLines);
-	viewer::view();
+	//viewer::setMeshInfo(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
+	//viewer::setDrawMode(viewer::DrawMode::PSEUDO_COLOR);
+	//viewer::setPartition(partitions);
+	//viewer::prepareMesh();
+	//viewer::passLines(steepLines);
+	//viewer::view();
 	cout << "hi" << endl;
 }
