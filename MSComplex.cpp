@@ -11,6 +11,7 @@ namespace MSComplex {
 	// from patch, to patch: index in transfer functions
 	std::map<std::tuple<int, int>, int> trnsfr_fnctns;
 	std::shared_ptr<std::vector<ms_region_t>> ms_regions;
+	std::shared_ptr<std::vector<int>> partitions;
 
 	// possible transfer functions
 	std::vector<glm::vec2> trans_funcs = std::vector<glm::vec2>({
@@ -25,6 +26,18 @@ namespace MSComplex {
 
 	void setHE(std::shared_ptr<HE> halfEdge) {
 		he = halfEdge;
+	}
+
+	std::shared_ptr<std::vector<int>> getPartitions() {
+		return partitions;
+	}
+
+	std::shared_ptr<std::vector<int>> getAdjIndex() {
+		return adj_index;
+	}
+
+	std::shared_ptr<std::vector<ms_region_t>> getMSRegions() {
+		return ms_regions;
 	}
 
 	int v2AdjIndex(int v) {
@@ -190,13 +203,14 @@ namespace MSComplex {
 	}
 
 	void buildTransFuncs() {
-		std::shared_ptr<std::vector<bool>> built = std::make_shared<std::vector<bool>>(trnsfr_fnctns.size(), false);
+		std::shared_ptr<std::vector<bool>> built = std::make_shared<std::vector<bool>>(ms_regions->size(), false);
 		std::vector<int> nb_patches = getNbPatches(0);
+		// set the first patch as built
+		built->at(0) = true;
+		// go over neighbors, if nb not built, build trans functions from nb
 		for (int nb_patch = 0; nb_patch < 4; nb_patch++) {
-			auto it = trnsfr_fnctns.find(std::make_pair(0, nb_patches[nb_patch]));
-			int map_index = std::distance(trnsfr_fnctns.begin(), it);
-			if (!built->at(map_index)) {
-				buildTransFuncsRec(0, nb_patch, built);
+			if (!built->at(nb_patches[nb_patch])) {
+				buildTransFuncsRec(0, nb_patches[nb_patch], built);
 			}
 		}
 	}
@@ -217,26 +231,99 @@ namespace MSComplex {
 		}
 	}
 
-	void buildTransFuncsRec(int from_patch, int patch, std::shared_ptr<std::vector<bool>> built) {
-		std::vector<int> nb_patches = getNbPatches(patch);
-		std::vector<int>::iterator it = std::find(nb_patches.begin(), nb_patches.end(), from_patch);
-		int from_index = std::distance(nb_patches.begin(), it);
-		int from_function = trnsfr_fnctns[std::make_pair(from_patch, patch)];
-		int func_index = getOppositeTransFunc(from_function);
-		// fill in the transfunction from this patch to its neighbors
-		for (int i = 0; i < 4; i++) {
-			int nb = nb_patches[(from_index + i) % 4];
-			trnsfr_fnctns[std::make_pair(patch, nb)] = (func_index + i) % 4;
+	int validateTransFuncs() {
+		for (int i = 0; i < ms_regions->size(); i++) {
+			std::vector<int> nb_patches = getNbPatches(i);
+			for (int j = 0; j < 4; j++) {
+				int forward_func_index = trnsfr_fnctns[std::make_pair(i, nb_patches[j])];
+				int backward_func_index = trnsfr_fnctns[std::make_pair(nb_patches[j], i)];
+				if (getOppositeTransFunc(forward_func_index) != backward_func_index) {
+					return 1;
+				}
+			}
 		}
-		// recursively find trans functions starting from neighbors
-		for (int i = 0; i < 4; i++) {
-			auto it = trnsfr_fnctns.find(std::make_pair(patch, nb_patches[i]));
-			int map_index = std::distance(trnsfr_fnctns.begin(), it);
-			if (!built->at(map_index)) {
-				buildTransFuncsRec(patch, nb_patches[i], built);
+		return 0;
+	}
+
+	// to be removed later, just going over the degrees of each node
+	int validateComplex() {
+		int res = 0;
+		std::map<int, int> node_degree;
+		for (int i = 0; i < ms_regions->size(); i++) {
+			for (int j = 0; j < 4; j++) {
+				int node_index = ms_regions->at(i).nodes[j];
+				if (node_degree.find(node_index) != node_degree.end()) {
+					node_degree[node_index] += 1;
+				}
+				else {
+					node_degree[node_index] = 1;
+				}
 			}
 		}
 
+		for (auto& x: node_degree) {
+			if (x.second != 4) {
+				res = 1;
+			}
+			std::cout << x.first << ": " << x.second << std::endl;
+		}
+		return res;
+	}
+
+	void buildTransFuncsRec(int from_patch, int to_patch, std::shared_ptr<std::vector<bool>> built) {
+		std::vector<int> nb_patches = getNbPatches(to_patch);
+		std::vector<int>::iterator it = std::find(nb_patches.begin(), nb_patches.end(), from_patch);
+		// the index of from_patch in neighbors of to_patch
+		int from_index = std::distance(nb_patches.begin(), it);
+		// index (type) of trans functions from from_patch to to_patch
+		int from_function = trnsfr_fnctns[std::make_pair(from_patch, to_patch)];
+		// the opposite of trans func above
+		int func_index = getOppositeTransFunc(from_function);
+		// set to_patch as built
+		built->at(to_patch) = true;
+		// need to re-order the nodes
+		std::vector<int> ordered_nodes(4);
+		// fill in the transfunction from this patch to its neighbors
+		for (int i = 0; i < 4; i++) {
+			ordered_nodes[(from_index + i) % 4] = ms_regions->at(to_patch).nodes[(func_index + i) % 4];
+			int nb = nb_patches[(from_index + i) % 4];
+			trnsfr_fnctns[std::make_pair(to_patch, nb)] = (func_index + i) % 4;
+		}
+		// set ordered nodes
+		ms_regions->at(to_patch).nodes = ordered_nodes;
+		// recursively find trans functions starting from neighbors
+		for (int i = 0; i < 4; i++) {
+			if (!built->at(nb_patches[i])) {
+				buildTransFuncsRec(to_patch, nb_patches[i], built);
+			}
+		}
+	}
+
+	glm::vec2 findTransFunc(int from_patch, int to_patch) {
+		auto trans_map_it = trnsfr_fnctns.find(std::make_pair(from_patch, to_patch));
+		// if can be found directly
+		if (trans_map_it != trnsfr_fnctns.end()) {
+			return trans_funcs[trans_map_it->second];
+		}
+		// if two patches connected by a point
+		else {
+			std::vector<int> nb_patches = getNbPatches(from_patch);
+			// check if there's path from nb
+			for (int i = 0; i < 4; i++) {
+				std::vector<int> nb_nb_patches = getNbPatches(nb_patches[i]);
+				auto p_it = std::find(nb_nb_patches.begin(), nb_nb_patches.end(), to_patch);
+				if (p_it != nb_nb_patches.end()) {
+					trans_map_it = trnsfr_fnctns.find(std::make_pair(from_patch, nb_patches[i]));
+					auto trans_map_it_snd = trnsfr_fnctns.find(std::make_pair(nb_patches[i], to_patch));
+					glm::vec2 trans_to_nb = trans_funcs[trans_map_it->second];
+					glm::vec2 trans_from_nb = trans_funcs[trans_map_it_snd->second];
+					return trans_to_nb + trans_from_nb;
+				}
+			}
+		}
+		// should have found it
+		std::cout << "trans function from " << from_patch << ", to " << to_patch << " not found" << std::endl;
+		return glm::vec2(0, 0);
 	}
 
 	std::shared_ptr<std::vector<ms_region_t>> buildMSComplex() {
@@ -292,17 +379,84 @@ namespace MSComplex {
 		return ms_regions;
 	}
 
-	void fillMsComplex() {
+	int findMsRegion(std::set<int> &sl_indices) {
+		std::set<int> nodes_v;
+		for (int sl_index : sl_indices) {
+			nodes_v.insert(SL->getSteepLines()->at(sl_index)[0]);
+			nodes_v.insert(SL->getSteepLines()->at(sl_index).end()[-1]);
+		}
+		std::vector<int> nodes_index;
+		for (int n : nodes_v) {
+			int index = v2AdjIndex(n);
+			nodes_index.push_back(index);
+		}
 		for (int i = 0; i < ms_regions->size(); i++) {
-			int v_in_region = findAVertInRegion(ms_regions->at(i));
-			DFS(v_in_region, (ms_regions->at(i)).region_verts);
+			std::sort(nodes_index.begin(), nodes_index.end());
+			// make a copy
+			std::vector<int> ms_region_nodes = ms_regions->at(i).nodes;
+			std::sort(ms_region_nodes.begin(), ms_region_nodes.end());
+			if (ms_region_nodes == nodes_index) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	bool ltzero(int i) {
+		return i < 0;
+	}
+
+	// might not partition the nodes completely
+	void fillMsComplex() {
+		//for (int i = 0; i < ms_regions->size(); i++) {
+		//	int v_in_region = findAVertInRegion(ms_regions->at(i));
+		//	DFS(v_in_region, (ms_regions->at(i)).region_verts);
+		//}
+		// change the way to do that
+		partitions = std::make_shared<std::vector<int>>(he->getNumVerts(), -1);
+		int start_index = 0;
+		while (true) {
+			// get next unassigned
+			auto unassigned_it = std::find_if(partitions->begin()+ start_index, partitions->end(), [](int x) {return x < 0; });
+			//[](int x) {return x < 0; }
+			if (unassigned_it == partitions->end()) {
+				break;
+			}
+			// if it's on the boundry, skip
+			int unassigned_v = std::distance(partitions->begin(), unassigned_it);
+			int sl_index;
+			if (onSteepLine(unassigned_v, sl_index)) {
+				start_index = unassigned_v + 1;
+				continue;
+			}
+			// do a search
+			std::set<int> sl_indices;
+			std::vector<int> region_verts;
+			DFS(unassigned_v, region_verts, sl_indices);
+			// find the region those vertices belong to
+			int ms_region_id = findMsRegion(sl_indices);
+			if (ms_region_id >= 0) {
+				ms_regions->at(ms_region_id).region_verts = region_verts;
+				for (int region_v : region_verts) {
+					partitions->at(region_v) = ms_region_id;
+				}
+			}
+			else {
+				std::cout << "error: did not find region for verts" << std::endl;
+				start_index = unassigned_v + 1;
+				continue;
+			}
 		}
 	}
 
 	void parametrize() {
+		validateComplex();
 		connectSL2Region();
 		buildTransFuncsEntries();
 		buildTransFuncs();
+		if (validateTransFuncs() != 0) {
+			std::cout << "trans funcs not valid" << std::endl;
+		}
 	}
 
 	int findAVertInRegion(ms_region_t &ms_region) {
@@ -339,10 +493,10 @@ namespace MSComplex {
 		return -1;
 	}
 
-	void DFS(int start_index, std::vector<int> &region_verts) {
+	void DFS(int start_index, std::vector<int> &region_verts, std::set<int> &sl_indices) {
 		int N = he->getNumVerts();
 		std::vector<bool> visited(N);
-		std::vector<int> sl_indices;
+		//std::vector<int> sl_indices;
 		DFS_rec(start_index, sl_indices, visited);
 		for (int i = 0; i < N; i++) {
 			if (visited.at(i)) {
@@ -351,7 +505,15 @@ namespace MSComplex {
 		}
 	}
 
-	void DFS_rec(int start_index, std::vector<int> &sl_indices, std::vector<bool> &visited) {
+	bool onNode(int v_index) {
+		auto it = std::find(adj_index->begin(), adj_index->end(), v_index);
+		if (it != adj_index->end()) {
+			return true;
+		}
+		return false;
+	}
+
+	void DFS_rec(int start_index, std::set<int> &sl_indices, std::vector<bool> &visited) {
 		// mark start index visited
 		visited.at(start_index) = true;
 		// get neighbors
@@ -362,12 +524,14 @@ namespace MSComplex {
 			int nb = neighbors->at(i);
 			if (!visited.at(nb)) {
 				int touched_sl_index;
-				if (onSteepLine(nb, touched_sl_index)) {
+				if (onNode(nb)) {
+					visited.at(nb) = true;
+				}
+				else if (onSteepLine(nb, touched_sl_index)) {
 					visited.at(nb) = true;
 					// something related to boundary
-					if (std::find(sl_indices.begin(), sl_indices.end(), touched_sl_index) == sl_indices.end()) {
-						sl_indices.push_back(touched_sl_index);
-					}
+					sl_indices.insert(touched_sl_index);
+					
 				}
 				else {
 					DFS_rec(nb, sl_indices, visited);

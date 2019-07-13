@@ -8,6 +8,7 @@
 #include "HE.h"
 #include "SteepLine.h"
 #include "MSComplex.h"
+#include "Relaxation.h"
 
 using namespace std;
 
@@ -38,8 +39,16 @@ int main(int argc, char *argv[])
 	Eigen::SparseMatrix<double> L, M;
 	igl::cotmatrix(*vertices_ptr, *faces_ptr, L);
 	L = (-L).eval();
-
 	igl::massmatrix(*vertices_ptr, *faces_ptr, igl::MASSMATRIX_TYPE_DEFAULT, M);
+
+	//std::cout << "L non zero entries: " << std::endl;
+	//for (int i = 0; i < L.rows(); i++) {
+	//	for (int j = 0; j < L.cols(); j++) {
+	//		if (L.coeff(i, j) != 0) {
+	//			std::cout << L.coeff(i, j) << std::endl;
+	//		}
+	//	}
+	//}
 
 	if (!readmode) {
 		Eigen::MatrixXd U;
@@ -54,6 +63,7 @@ int main(int argc, char *argv[])
 		U = ((U.array() - U.minCoeff()) / (U.maxCoeff() - U.minCoeff())).eval();
 
 		eigenVec_ptr = std::make_shared<Eigen::VectorXd>(U.col(0));
+		std::cout << "D: " << D << std::endl;
 
 		// write eigen vector to file
 		ofstream myfile;
@@ -61,7 +71,7 @@ int main(int argc, char *argv[])
 		if (myfile.is_open()) {
 			for (int i = 0; i < eigenVec_ptr->rows(); i++) {
 				myfile << (*eigenVec_ptr)(i) << "\n";
-				std::cout << (*eigenVec_ptr)(i) << endl;
+				//std::cout << (*eigenVec_ptr)(i) << endl;
 			}
 			myfile.close();
 		}
@@ -71,7 +81,7 @@ int main(int argc, char *argv[])
 		// read eigen vector from file
 		ifstream myfile;
 		string line;
-		myfile.open("eigen_vec.txt");
+		myfile.open("eigen_vec_10.txt");
 		if (myfile.is_open()) {
 			int line_num = 0;
 			while (getline(myfile, line))
@@ -92,17 +102,16 @@ int main(int argc, char *argv[])
 	MSComplex::setHE(he);
 	MSComplex::buildAdjMatrix();
 	std::shared_ptr<std::vector<MSComplex::ms_region_t>> ms_regions = MSComplex::buildMSComplex();
-	//MSComplex::parametrize();
+	MSComplex::parametrize();
 
+	// set partitions
 	int N = vertices_ptr->size();
-	std::shared_ptr<std::vector<int>> partitions = std::make_shared<std::vector<int>>(N);
-	for (int i = 0; i < ms_regions->size(); i++) {
-		std::vector<int> &region_verts = ms_regions->at(i).region_verts;
-		for (int j = 0; j < region_verts.size(); j++) {
-			partitions->at(region_verts.at(j)) = i;
-		}
-	}
+	std::shared_ptr<std::vector<int>> partitions = MSComplex::getPartitions();
 
+	// Apply relaxation
+	Relaxation::setInfos(he, MSComplex::getAdjIndex(), partitions, std::make_shared<decltype(L)>(L), MSComplex::getMSRegions());
+	Relaxation::setMtxIndices();
+	Relaxation::solveU();
 	viewer::setMeshInfo(vertices_ptr, faces_ptr, vns_ptr, fns_ptr, eigenVec_ptr);
 	viewer::setDrawMode(viewer::DrawMode::PSEUDO_COLOR);
 	viewer::setPartition(partitions);

@@ -1,6 +1,8 @@
 #include "Viewer.h"
 #include "stdio.h"
 #include <iostream>
+#include <random>
+#include <map>
 
 float PI = 3.14159f;
 int N = 0;
@@ -27,12 +29,14 @@ namespace viewer {
 			glm::vec3(1.f, 1.f, 0.f),
 			glm::vec3(0.f, 1.f, 1.f),
 			glm::vec3(1.f, 0.f, 1.f),
-			glm::vec3(0.55294117647f, 0.50588235294f, 0.46666666666f),
-			glm::vec3(0.90980392156f, 1.00000000000f, 0.89019607843f),
-			glm::vec3(0.56078431372f, 0.69803921568f, 0.89019607843f),
-			glm::vec3(0.81960784313f, 0.91764705882f, 0.87058823529f),
-			glm::vec3(0.84705882352f, 0.91764705882f, 0.87058823529f) };
-		
+			glm::vec3(1.f, 1.f, 1.f),
+			glm::vec3(1.f, 0.f, 0.5f),
+			glm::vec3(0.5f, 0.f, 1.f),
+			glm::vec3(1.f, 0.5f, 0.f),
+			glm::vec3(0.f, 1.f, 0.f),
+			glm::vec3(0.f, 0.5f, 1.f) };
+		std::map<int, glm::vec3> patch_color;
+
 		DrawMode drawMode = DrawMode::VALUE;
 		std::shared_ptr<Eigen::MatrixXd> vertices;
 		std::shared_ptr<Eigen::MatrixXd> vns;
@@ -71,12 +75,27 @@ namespace viewer {
 			return std::make_shared<Eigen::MatrixXd>(colors);
 		}
 
+		glm::vec3 genRandomColor() {
+			glm::vec3 color(0.0f);
+			for (int i = 0; i < 3; i++) {
+				float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+				color[i] = r;
+			}
+			return color;
+		}
+
 		std::shared_ptr<Eigen::MatrixXd> partition2Colors() {
 			std::shared_ptr<Eigen::MatrixXd> colors = std::make_shared<Eigen::MatrixXd>(partitions->size(), 3);
 			for (int i = 0; i < partitions->size(); i++) {
 				int col_index = partitions->at(i) % pseudo_cols.size();
 				colors->row(i) << pseudo_cols[col_index][0],
 					pseudo_cols[col_index][1], pseudo_cols[col_index][2];
+
+				//if (patch_color.find(partitions->at(i)) == patch_color.end()) {
+				//	patch_color[partitions->at(i)] = genRandomColor();
+				//}
+				//glm::vec3 color = patch_color[partitions->at(i)];
+				//colors->row(i) << color[0], color[1], color[2];
 			}
 			return colors;
 		}
@@ -116,7 +135,7 @@ namespace viewer {
 		void updateRotation(int param) {
 			int timeSinceStart = glutGet(GLUT_ELAPSED_TIME);
 			std::cout << "timeSinceStart: " << timeSinceStart << std::endl;
-			M = glm::rotate(M, delta_angle, glm::vec3(0.f, 1.f, 0.f));
+			M = glm::rotate(M, delta_angle, glm::vec3(0.f, 0.f, 1.f));
 			glm::mat4 MVP = P * V * M;
 			GLint MVP_loc = meshShader.getUniformLocation("MVP");
 			meshShader.useProgram();
